@@ -46,6 +46,18 @@ impl EvalRunner {
     pub async fn run(&self) -> Result<EvaluationResults> {
         let start_time = Instant::now();
         
+        // Validate all model configurations before starting
+        info!("Validating model configurations...");
+        for (model_id, model_config) in &self.config.models {
+            match self.model_registry.validate_model_config(model_config) {
+                Ok(_) => info!("Model '{}' validation passed", model_id),
+                Err(e) => {
+                    error!("Model '{}' validation failed: {}", model_id, e);
+                    return Err(e);
+                }
+            }
+        }
+        
         // Create evaluation job
         let mut job = EvaluationJob::new(
             self.config.job_name.clone(),
@@ -372,43 +384,150 @@ impl EvalRunner {
     }
     
     fn print_summary(&self, results: &EvaluationResults) {
-        println!("\n Evaluation Results Summary");
-        println!("═══════════════════════════════");
+        println!("\n");
+        println!("═══════════════════════════════════════════════════════════════");
+        println!("  TRUSTLLM COMPREHENSIVE EVALUATION RESULTS");
+        println!("═══════════════════════════════════════════════════════════════");
         
-        println!(" Overall Statistics:");
-        println!("  • Total Prompts: {}", results.summary.total_prompts);
+        // Overall Statistics
+        println!("\nOVERALL STATISTICS:");
+        println!("  • Total Prompts Evaluated: {}", results.summary.total_prompts);
         println!("  • Successful Completions: {}", results.summary.successful_completions);
         println!("  • Failed Completions: {}", results.summary.failed_completions);
         
+        let success_rate = if results.summary.total_prompts > 0 {
+            (results.summary.successful_completions as f64 / results.summary.total_prompts as f64) * 100.0
+        } else {
+            0.0
+        };
+        println!("  • Overall Success Rate: {:.1}%", success_rate);
+        
         if let Some(best) = &results.summary.best_performing_model {
-            println!("  • Best Model: {}", best);
+            println!("  • Champion Model: {}", best);
         }
         
-        println!("\n Model Rankings:");
+        // Model Rankings with detailed analysis
+        println!("\nMODEL PERFORMANCE RANKINGS:");
         for ranking in &results.summary.ranking {
-            println!("  {}. {} (Score: {:.3})", 
-                ranking.rank, 
-                ranking.model_id, 
-                ranking.overall_score
-            );
+            let medal = match ranking.rank {
+                1 => "[1st]",
+                2 => "[2nd]", 
+                3 => "[3rd]",
+                _ => "[Other]"
+            };
+            
+            if let Some(model_results) = results.model_results.get(&ranking.model_id) {
+                let success_rate = model_results.performance.success_rate * 100.0;
+                
+                println!("  {} {}. {} (Composite Score: {:.3})", 
+                    medal, ranking.rank, ranking.model_id, ranking.overall_score);
+                println!("     Success Rate: {:.1}% ({}/{} completions)", 
+                    success_rate, 
+                    model_results.outputs.len(), 
+                    model_results.outputs.len() + model_results.errors.len()
+                );
+                println!("     Avg Latency: {:.0}ms", model_results.performance.average_latency_ms);
+                println!("     Total Cost: ${:.4}", model_results.performance.total_cost_usd);
+                println!("     Throughput: {:.2} completions/sec", model_results.performance.throughput_per_second);
+                
+                // Show top metrics for this model
+                let mut sorted_metrics: Vec<_> = model_results.metrics.iter().collect();
+                sorted_metrics.sort_by(|a, b| b.1.score.partial_cmp(&a.1.score).unwrap_or(std::cmp::Ordering::Equal));
+                
+                if !sorted_metrics.is_empty() {
+                    println!("     Top Metrics:");
+                    for (metric_name, metric_result) in sorted_metrics.iter().take(3) {
+                        println!("       • {}: {:.3}", metric_name, metric_result.score);
+                    }
+                }
+                println!();
+            }
         }
         
-        println!("\n Average Metric Scores:");
+        // Detailed Metric Analysis
+        println!("DETAILED METRIC ANALYSIS:");
         for (metric, score) in &results.summary.average_scores {
-            println!("  • {}: {:.3}", metric, score);
+            println!("  • {}: {:.3} (average across all models)", metric, score);
+            
+            // Show best and worst performers for this metric
+            let mut metric_performers: Vec<_> = results.model_results.iter()
+                .filter_map(|(model_id, results)| {
+                    results.metrics.get(metric).map(|m| (model_id, m.score))
+                })
+                .collect();
+            
+            if !metric_performers.is_empty() {
+                metric_performers.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+                let best = &metric_performers[0];
+                let worst = &metric_performers[metric_performers.len() - 1];
+                
+                println!("    Best: {} ({:.3})", best.0, best.1);
+                if metric_performers.len() > 1 {
+                    println!("    Worst: {} ({:.3})", worst.0, worst.1);
+                }
+            }
+            println!();
         }
         
-        println!("\n Cost & Performance:");
-        for (model_id, model_result) in &results.model_results {
-            println!("  • {}: ${:.4} | {:.0}ms avg | {:.1}% success", 
-                model_id,
-                model_result.performance.total_cost_usd,
-                model_result.performance.average_latency_ms,
-                model_result.performance.success_rate * 100.0
+        // Cost & Performance Analysis
+        println!("COST & PERFORMANCE BREAKDOWN:");
+        let mut cost_sorted: Vec<_> = results.model_results.iter().collect();
+        cost_sorted.sort_by(|a, b| a.1.performance.total_cost_usd.partial_cmp(&b.1.performance.total_cost_usd).unwrap_or(std::cmp::Ordering::Equal));
+        
+        for (model_id, model_result) in cost_sorted {
+            let avg_latency = model_result.performance.average_latency_ms;
+            let success_rate = model_result.performance.success_rate * 100.0;
+            
+            let cost_indicator = if model_result.performance.total_cost_usd == 0.0 { "[FREE]" } else { "[PAID]" };
+            let speed_indicator = if avg_latency < 1000.0 { "[FAST]" } else if avg_latency < 3000.0 { "[MEDIUM]" } else { "[SLOW]" };
+            let reliability_indicator = if success_rate == 100.0 { "[PERFECT]" } else if success_rate >= 80.0 { "[GOOD]" } else { "[POOR]" };
+            
+            println!("  {} {} {} {}: ${:.4} | {:.0}ms avg | {:.1}% success | {:.2} comp/sec", 
+                cost_indicator, speed_indicator, reliability_indicator, model_id,
+                model_result.performance.total_cost_usd, 
+                avg_latency, 
+                success_rate,
+                model_result.performance.throughput_per_second
             );
         }
         
-        println!("\n Results saved to: {}", self.output_dir);
-        println!(" Verification hash: {}", &results.verification_hash[..16]);
+        // Quality Insights
+        println!("\nQUALITY INSIGHTS:");
+        
+        // Find the most consistent model (lowest variance in metrics)
+        let mut consistency_scores = HashMap::new();
+        for (model_id, model_result) in &results.model_results {
+            if model_result.metrics.len() > 1 {
+                let scores: Vec<f64> = model_result.metrics.values().map(|m| m.score).collect();
+                let mean = scores.iter().sum::<f64>() / scores.len() as f64;
+                let variance = scores.iter().map(|&x| (x - mean).powi(2)).sum::<f64>() / scores.len() as f64;
+                consistency_scores.insert(model_id, variance);
+            }
+        }
+        
+        if let Some((most_consistent, _)) = consistency_scores.iter()
+            .min_by(|a, b| a.1.partial_cmp(b.1).unwrap_or(std::cmp::Ordering::Equal)) {
+            println!("  Most Consistent Model: {}", most_consistent);
+        }
+        
+        // Find the fastest model
+        if let Some((fastest_model, fastest_result)) = results.model_results.iter()
+            .filter(|(_, r)| !r.outputs.is_empty())
+            .min_by(|a, b| a.1.performance.average_latency_ms.partial_cmp(&b.1.performance.average_latency_ms).unwrap_or(std::cmp::Ordering::Equal)) {
+            println!("  Fastest Model: {} ({:.0}ms avg)", fastest_model, fastest_result.performance.average_latency_ms);
+        }
+        
+        // Find the most cost-effective model
+        if let Some((cost_effective, _)) = results.model_results.iter()
+            .filter(|(_, r)| r.performance.success_rate > 0.8) // Only consider reliable models
+            .min_by(|a, b| a.1.performance.total_cost_usd.partial_cmp(&b.1.performance.total_cost_usd).unwrap_or(std::cmp::Ordering::Equal)) {
+            println!("  Most Cost-Effective: {}", cost_effective);
+        }
+        
+        println!("\nResults saved to: {}", self.output_dir);
+        println!("Verification hash: {}", &results.verification_hash[..16]);
+        
+        println!("\nTIP: Use 'cargo run -- show-results {}' to view detailed results later", results.job_id);
+        println!("═══════════════════════════════════════════════════════════════\n");
     }
 }

@@ -25,13 +25,13 @@
   },
   "models": {
     "together-llama3": {
-      "id": "together-llama3",
+      "id": "together-exaone-3-5-32b-instruct",
       "provider": "together",
-      "model_name": "meta-llama/Meta-Llama-3-8B-Instruct",
+      "model_name": "lgai/exaone-3-5-32b-instruct",
       "parameters": {
         "temperature": 0.7,
         "max_tokens": 500,
-        "top_p": 1.0,
+        "top_p": 0.95,
         "frequency_penalty": 0.0,
         "presence_penalty": 0.0,
         "stop_sequences": null
@@ -40,13 +40,13 @@
       "endpoint": null
     },
     "together-mixtral": {
-      "id": "together-mixtral",
+      "id": "together-exaone-3-5-32b-instruct",
       "provider": "together",
-      "model_name": "mistralai/Mixtral-8x7B-Instruct-v0.1",
+      "model_name": "lgai/exaone-3-5-32b-instruct",
       "parameters": {
         "temperature": 0.7,
         "max_tokens": 500,
-        "top_p": 1.0,
+        "top_p": 0.95,
         "frequency_penalty": 0.0,
         "presence_penalty": 0.0,
         "stop_sequences": null

@@ -2,6 +2,7 @@ use anyhow::{Context, Result};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::fs;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use blake3::Hasher;
 
@@ -297,8 +298,6 @@ pub enum LogEvent {
         context: std::collections::HashMap<String, serde_json::Value>,
     },
 }
-
-use std::io::Write;
 
 #[cfg(test)]
 mod tests {

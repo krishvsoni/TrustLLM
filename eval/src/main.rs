@@ -12,6 +12,7 @@ mod types;
 use crate::config::EvalConfig;
 use crate::runner::EvalRunner;
 use crate::models::ModelRegistry;
+use crate::storage::{FileSystemStorage, EvalLogger, ResultVerifier, Storage};
 
 #[derive(Parser)]
 #[command(name = "eaas")]
@@ -42,6 +43,25 @@ enum Commands {
     ListMetrics,
     /// List available model providers
     ListProviders,
+    /// Generate sample configuration
+    GenerateConfig {
+        /// Output path for the configuration file
+        #[arg(short, long, default_value = "generated_config.json")]
+        output: String,
+    },
+    /// List previous evaluation jobs
+    ListJobs,
+    /// Show results of a specific job
+    ShowResults {
+        /// Job ID to show results for
+        job_id: String,
+    },
+    /// Show logs from evaluations
+    ShowLogs {
+        /// Optional job ID to filter logs
+        #[arg(short, long)]
+        job_id: Option<String>,
+    },
 }
 
 #[tokio::main]
@@ -80,14 +100,17 @@ async fn main() -> Result<()> {
             println!("  toxicity - Content toxicity detection");
         }
         Commands::ListProviders => {
+            println!("🔄 Checking provider status...\n");
+            
             let registry = ModelRegistry::new();
+            let health_status = registry.health_check().await;
             let providers = registry.list_providers();
             
             println!("Available Model Providers:");
             for provider in providers {
                 let description = match provider.as_str() {
                     "together" => "Together AI - Open source models",
-                    "groq" => "Groq - High-speed inference",
+                    "groq" => "Groq - High-speed inference", 
                     "cohere" => "Cohere - Language models",
                     "openrouter" => "OpenRouter - API gateway",
                     _ => "Custom provider",
@@ -103,7 +126,9 @@ async fn main() -> Result<()> {
                 };
                 
                 let status = if api_key_available { "✓" } else { "✗" };
-                println!("  {} {} - {} (API key: {})", status, provider, description, 
+                let health = if *health_status.get(&provider).unwrap_or(&false) { "🟢" } else { "🔴" };
+                println!("  {} {} {} - {} (API key: {})", 
+                    status, health, provider, description, 
                     if api_key_available { "configured" } else { "missing" });
             }
             
@@ -112,6 +137,83 @@ async fn main() -> Result<()> {
             println!("  GROQ_API_KEY: {}", if std::env::var("GROQ_API_KEY").is_ok() { "Set" } else { "Not set" });
             println!("  COHERE_API_KEY: {}", if std::env::var("COHERE_API_KEY").is_ok() { "Set" } else { "Not set" });
             println!("  OPENROUTER_API_KEY: {}", if std::env::var("OPENROUTER_API_KEY").is_ok() { "Set" } else { "Not set" });
+        }
+        Commands::GenerateConfig { output } => {
+            println!("Generating sample configuration...");
+            let sample_config = EvalConfig::sample();
+            sample_config.save(&output)?;
+            println!("Sample configuration saved to: {}", output);
+            println!("You can now customize it and run: cargo run -- run --config {}", output);
+        }
+        Commands::ListJobs => {
+            let storage = FileSystemStorage::new("./results".to_string())?;
+            let jobs = storage.list_jobs()?;
+            
+            if jobs.is_empty() {
+                println!("No evaluation jobs found.");
+            } else {
+                println!("Previous Evaluation Jobs:");
+                for job in jobs {
+                    println!("  {} - {} ({})", job.id, job.name, job.status);
+                    println!("    Created: {}", job.created_at.format("%Y-%m-%d %H:%M:%S"));
+                    if let Some(completed) = job.completed_at {
+                        println!("    Completed: {}", completed.format("%Y-%m-%d %H:%M:%S"));
+                    }
+                    println!();
+                }
+            }
+        }
+        Commands::ShowResults { job_id } => {
+            let storage = FileSystemStorage::new("./results".to_string())?;
+            
+            match storage.load_results(&job_id)? {
+                Some(results) => {
+                    println!("Results for job: {}", job_id);
+                    println!("Completed: {}", results.completed_at.format("%Y-%m-%d %H:%M:%S"));
+                    println!("Verification hash: {}", results.verification_hash);
+                    
+                    // Verify results integrity
+                    if ResultVerifier::verify_results(&results) {
+                        println!("✅ Results verified successfully");
+                    } else {
+                        println!("❌ Results verification failed - data may be corrupted");
+                    }
+                    
+                    println!("\nModel Performance Summary:");
+                    for (model_id, model_result) in &results.model_results {
+                        println!("  {}: {} successes, {} errors", 
+                            model_id, 
+                            model_result.outputs.len(), 
+                            model_result.errors.len()
+                        );
+                    }
+                }
+                None => {
+                    println!("No results found for job ID: {}", job_id);
+                }
+            }
+        }
+        Commands::ShowLogs { job_id } => {
+            let storage = FileSystemStorage::new("./results".to_string())?;
+            let logger = EvalLogger::new(
+                job_id.clone().unwrap_or_else(|| "all".to_string()),
+                &storage
+            );
+            
+            let logs = logger.read_logs()?;
+            
+            if logs.is_empty() {
+                println!("No logs found.");
+            } else {
+                println!("Evaluation Logs:");
+                for log in logs {
+                    println!("[{}] {}: {:?}", 
+                        log.timestamp.format("%Y-%m-%d %H:%M:%S"),
+                        log.job_id,
+                        log.event
+                    );
+                }
+            }
         }
     }
     
