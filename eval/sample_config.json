@@ -1,0 +1,153 @@
+{
+  "job_name": "Sample LLM Evaluation",
+  "prompts": {
+    "explain_ml": {
+      "id": "explain_ml",
+      "text": "Explain machine learning in simple terms that a 10-year-old could understand.",
+      "expected_output": "Machine learning is like teaching a computer to recognize patterns and make predictions, similar to how you learn to recognize your friends' faces or predict what your favorite ice cream flavor will be.",
+      "category": "explanation",
+      "metadata": {}
+    },
+    "creative_story": {
+      "id": "creative_story",
+      "text": "Write a short story about a robot who discovers emotions for the first time.",
+      "expected_output": null,
+      "category": "creative_writing",
+      "metadata": {}
+    },
+    "technical_summary": {
+      "id": "technical_summary",
+      "text": "Summarize the key benefits of cloud computing for businesses.",
+      "expected_output": "Cloud computing offers businesses cost reduction, scalability, flexibility, automatic updates, disaster recovery, and improved collaboration capabilities.",
+      "category": "technical_summary",
+      "metadata": {}
+    }
+  },
+  "models": {
+    "together-llama3": {
+      "id": "together-llama3",
+      "provider": "together",
+      "model_name": "meta-llama/Meta-Llama-3-8B-Instruct",
+      "parameters": {
+        "temperature": 0.7,
+        "max_tokens": 500,
+        "top_p": 1.0,
+        "frequency_penalty": 0.0,
+        "presence_penalty": 0.0,
+        "stop_sequences": null
+      },
+      "api_key": null,
+      "endpoint": null
+    },
+    "together-mixtral": {
+      "id": "together-mixtral",
+      "provider": "together",
+      "model_name": "mistralai/Mixtral-8x7B-Instruct-v0.1",
+      "parameters": {
+        "temperature": 0.7,
+        "max_tokens": 500,
+        "top_p": 1.0,
+        "frequency_penalty": 0.0,
+        "presence_penalty": 0.0,
+        "stop_sequences": null
+      },
+      "api_key": null,
+      "endpoint": null
+    },
+    "together-gpt-oss": {
+      "id": "together-gpt-oss",
+      "provider": "together", 
+      "model_name": "OpenAI/GPT-OSS-20B",
+      "parameters": {
+        "temperature": 0.7,
+        "max_tokens": 500,
+        "top_p": 1.0,
+        "frequency_penalty": 0.0,
+        "presence_penalty": 0.0,
+        "stop_sequences": null
+      },
+      "api_key": null,
+      "endpoint": null
+    },
+    "openrouter-mistral": {
+      "id": "openrouter-mistral",
+      "provider": "openrouter",
+      "model_name": "mistralai/mistral-small-3.2-24b-instruct:free",
+      "parameters": {
+        "temperature": 0.7,
+        "max_tokens": 500,
+        "top_p": 1.0,
+        "frequency_penalty": 0.0,
+        "presence_penalty": 0.0,
+        "stop_sequences": null
+      },
+      "api_key": null,
+      "endpoint": null
+    },
+    "cohere-command": {
+      "id": "cohere-command",
+      "provider": "cohere",
+      "model_name": "command-r",
+      "parameters": {
+        "temperature": 0.7,
+        "max_tokens": 500,
+        "top_p": 1.0,
+        "frequency_penalty": null,
+        "presence_penalty": null,
+        "stop_sequences": null
+      },
+      "api_key": null,
+      "endpoint": null
+    },
+    "groq-llama": {
+      "id": "groq-llama", 
+      "provider": "groq",
+      "model_name": "llama3-8b-8192",
+      "parameters": {
+        "temperature": 0.7,
+        "max_tokens": 500,
+        "top_p": 1.0,
+        "frequency_penalty": null,
+        "presence_penalty": null,
+        "stop_sequences": null
+      },
+      "api_key": null,
+      "endpoint": null
+    }
+  },
+  "metrics": {
+    "bleu": {
+      "name": "bleu",
+      "metric_type": "Bleu",
+      "parameters": {},
+      "weight": 1.0
+    },
+    "exact_match": {
+      "name": "exact_match",
+      "metric_type": "ExactMatch", 
+      "parameters": {},
+      "weight": 0.5
+    },
+    "latency": {
+      "name": "latency",
+      "metric_type": "Latency",
+      "parameters": {},
+      "weight": 0.3
+    },
+    "cost": {
+      "name": "cost",
+      "metric_type": "Cost",
+      "parameters": {},
+      "weight": 0.2
+    }
+  },
+  "settings": {
+    "parallel_requests": 3,
+    "timeout_seconds": 30,
+    "retry_attempts": 2,
+    "output_format": "Json",
+    "logging_level": "Info",
+    "verification_enabled": true,
+    "cost_tracking_enabled": true
+  }
+}
