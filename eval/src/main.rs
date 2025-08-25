@@ -24,41 +24,27 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Run an evaluation job
     Run {
-        /// Path to configuration file
         #[arg(short, long)]
         config: String,
-        /// Output directory for results
         #[arg(short, long, default_value = "./results")]
         output: String,
     },
-    /// Validate configuration
     Validate {
-        /// Path to configuration file
         #[arg(short, long)]
         config: String,
     },
-    /// List available metrics
     ListMetrics,
-    /// List available model providers
     ListProviders,
-    /// Generate sample configuration
     GenerateConfig {
-        /// Output path for the configuration file
         #[arg(short, long, default_value = "generated_config.json")]
         output: String,
     },
-    /// List previous evaluation jobs
     ListJobs,
-    /// Show results of a specific job
     ShowResults {
-        /// Job ID to show results for
         job_id: String,
     },
-    /// Show logs from evaluations
     ShowLogs {
-        /// Optional job ID to filter logs
         #[arg(short, long)]
         job_id: Option<String>,
     },
@@ -66,18 +52,14 @@ enum Commands {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Load environment variables from .env file
     dotenv::dotenv().ok();
-    
     env_logger::init();
-    
     let cli = Cli::parse();
-    
+
     match cli.command {
         Commands::Run { config, output } => {
             info!("Loading configuration from: {}", config);
             let config = EvalConfig::load(&config)?;
-            
             info!("Starting evaluation run with output to: {}", output);
             let runner = EvalRunner::new(config, output).await?;
             runner.run().await?;
@@ -100,12 +82,11 @@ async fn main() -> Result<()> {
             println!("  toxicity - Content toxicity detection");
         }
         Commands::ListProviders => {
-            println!("🔄 Checking provider status...\n");
-            
+            println!("Checking provider status...\n");
             let registry = ModelRegistry::new();
             let health_status = registry.health_check().await;
             let providers = registry.list_providers();
-            
+
             println!("Available Model Providers:");
             for provider in providers {
                 let description = match provider.as_str() {
@@ -115,8 +96,7 @@ async fn main() -> Result<()> {
                     "openrouter" => "OpenRouter - API gateway",
                     _ => "Custom provider",
                 };
-                
-                // Check if API key is available
+
                 let api_key_available = match provider.as_str() {
                     "together" => std::env::var("TOGETHER_API_KEY").is_ok(),
                     "groq" => std::env::var("GROQ_API_KEY").is_ok(),
@@ -124,14 +104,12 @@ async fn main() -> Result<()> {
                     "openrouter" => std::env::var("OPENROUTER_API_KEY").is_ok(),
                     _ => false,
                 };
-                
-                let status = if api_key_available { "✓" } else { "✗" };
-                let health = if *health_status.get(&provider).unwrap_or(&false) { "🟢" } else { "🔴" };
-                println!("  {} {} {} - {} (API key: {})", 
-                    status, health, provider, description, 
-                    if api_key_available { "configured" } else { "missing" });
+
+                let status = if api_key_available { "configured" } else { "missing" };
+                let health = if *health_status.get(&provider).unwrap_or(&false) { "healthy" } else { "unhealthy" };
+                println!("  {} - {} - {} ({})", provider, description, health, status);
             }
-            
+
             println!("\nEnvironment Variables:");
             println!("  TOGETHER_API_KEY: {}", if std::env::var("TOGETHER_API_KEY").is_ok() { "Set" } else { "Not set" });
             println!("  GROQ_API_KEY: {}", if std::env::var("GROQ_API_KEY").is_ok() { "Set" } else { "Not set" });
@@ -148,7 +126,7 @@ async fn main() -> Result<()> {
         Commands::ListJobs => {
             let storage = FileSystemStorage::new("./results".to_string())?;
             let jobs = storage.list_jobs()?;
-            
+
             if jobs.is_empty() {
                 println!("No evaluation jobs found.");
             } else {
@@ -165,20 +143,18 @@ async fn main() -> Result<()> {
         }
         Commands::ShowResults { job_id } => {
             let storage = FileSystemStorage::new("./results".to_string())?;
-            
             match storage.load_results(&job_id)? {
                 Some(results) => {
                     println!("Results for job: {}", job_id);
                     println!("Completed: {}", results.completed_at.format("%Y-%m-%d %H:%M:%S"));
                     println!("Verification hash: {}", results.verification_hash);
-                    
-                    // Verify results integrity
+
                     if ResultVerifier::verify_results(&results) {
-                        println!("✅ Results verified successfully");
+                        println!("Results verified successfully");
                     } else {
-                        println!("❌ Results verification failed - data may be corrupted");
+                        println!("Results verification failed - data may be corrupted");
                     }
-                    
+
                     println!("\nModel Performance Summary:");
                     for (model_id, model_result) in &results.model_results {
                         println!("  {}: {} successes, {} errors", 
@@ -199,9 +175,9 @@ async fn main() -> Result<()> {
                 job_id.clone().unwrap_or_else(|| "all".to_string()),
                 &storage
             );
-            
+
             let logs = logger.read_logs()?;
-            
+
             if logs.is_empty() {
                 println!("No logs found.");
             } else {
@@ -216,6 +192,6 @@ async fn main() -> Result<()> {
             }
         }
     }
-    
+
     Ok(())
 }
