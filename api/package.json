@@ -1,0 +1,33 @@
+{
+  "name": "@trustllm/eaas-api",
+  "version": "1.0.0",
+  "description": "TrustLLM Evaluation as a Service API",
+  "module": "src/index.ts",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "bun run --watch src/index.ts",
+    "build": "bun build src/index.ts --outdir dist --target node",
+    "start": "node dist/index.js",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "fastify": "^4.24.3",
+    "@fastify/cors": "^8.4.0",
+    "@fastify/swagger": "^8.12.0",
+    "@fastify/swagger-ui": "^2.1.0",
+    "uuid": "^9.0.1",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/uuid": "^9.0.7",
+    "@types/node": "^20.8.7"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "keywords": ["llm", "evaluation", "ai", "trustllm", "eaas"],
+  "author": "TrustLLM Team",
+  "license": "MIT"
+}
