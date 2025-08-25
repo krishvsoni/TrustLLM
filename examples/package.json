@@ -1,0 +1,18 @@
+{
+  "name": "trustllm-examples",
+  "version": "1.0.0",
+  "description": "Examples for using TrustLLM Evaluation as a Service",
+  "type": "module",
+  "scripts": {
+    "basic": "bun run basic-evaluation.ts",
+    "advanced": "bun run advanced-evaluation.ts"
+  },
+  "dependencies": {
+    "axios": "^1.6.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/node": "^20.8.7",
+    "typescript": "^5.3.0"
+  }
+}
